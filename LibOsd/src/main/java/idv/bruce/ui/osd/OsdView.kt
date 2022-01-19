@@ -1,12 +1,8 @@
 package idv.bruce.ui.osd
 
-interface OsdView {
+interface OsdView<T> {
 
-    fun addOsdItem(item: OSDContainer)
+    fun addOsdItem(item : OSDItem<T>)
 
-    fun removeOsdItem(item: OSDContainer)
-
-    fun onStart()
-
-    fun onStop()
+    fun removeOsdItem(item : OSDItem<T>)
 }

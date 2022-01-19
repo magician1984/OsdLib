@@ -8,31 +8,29 @@ import android.util.Size
 import android.view.Choreographer
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import idv.bruce.ui.osd.OSDContainer
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import idv.bruce.ui.osd.OSDItem
 import idv.bruce.ui.osd.OSDQueue
 import idv.bruce.ui.osd.OsdView
 import idv.bruce.ui.osd.OsdEventListener
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
+import kotlinx.coroutines.launch
 
-class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context, attr),
-    Choreographer.FrameCallback, OsdView {
+class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(context, attr),
+                                                               Choreographer.FrameCallback,
+                                                               OsdView<Canvas> {
     companion object {
-        const val TAG: String = "OSD_Container"
+        const val TAG : String = "OSD_Container"
     }
 
-    private val queue: OSDQueue = OSDQueue()
+    private val queue : OSDQueue<Canvas> = OSDQueue()
 
-    private val service: ExecutorService = Executors.newSingleThreadExecutor()
+    private val choreographer : Choreographer = Choreographer.getInstance()
 
-    private var future: Future<*>? = null
 
-    private val choreographer: Choreographer = Choreographer.getInstance()
-
-    var fps: Int = 60
-
-    var eventListener: OsdEventListener?
+    var eventListener : OsdEventListener?
         get() {
             return queue.eventListener
         }
@@ -40,17 +38,34 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
             queue.eventListener = value
         }
 
-    private var mHolder: SurfaceHolder? = null
+    private var mHolder : SurfaceHolder? = null
 
-    private var isAnime: Boolean = false
+    private var isResume : Boolean = false
 
-    private var frameCount: Byte = 0
+    private var isSurfaceReady :Boolean = false
+
+    private var mWidth:Int = -1
+
+    private var mHeight:Int = -1
+
+
 
     init {
+        (context as LifecycleOwner).apply {
+            lifecycleScope.launch {
+                repeatOnLifecycle(Lifecycle.State.RESUMED){
+                    onStart()
+                }
+                repeatOnLifecycle(Lifecycle.State.CREATED){
+                    onStop()
+                }
+            }
+        }
+
         setZOrderMediaOverlay(true)
 
         holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) {
+            override fun surfaceCreated(holder : SurfaceHolder) {
                 Log.d(TAG, "surfaceCreated")
 
                 mHolder = holder
@@ -59,54 +74,62 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
             }
 
             override fun surfaceChanged(
-                holder: SurfaceHolder,
-                format: Int,
-                width: Int,
-                height: Int
+                holder : SurfaceHolder,
+                format : Int,
+                width : Int,
+                height : Int
             ) {
                 Log.d(TAG, "surfaceChanged : $format, $width, $height")
-                queue.viewSize = Size(width, height)
+                if(mWidth != width || mHeight != height)
+                    isSurfaceReady = false
+
+                if(!isSurfaceReady){
+                    mWidth = width
+                    mHeight = height
+                    queue.viewSize = Size(width, height)
+                    isSurfaceReady
+                }
 
             }
 
-            override fun surfaceDestroyed(holder: SurfaceHolder) {
-
+            override fun surfaceDestroyed(holder : SurfaceHolder) {
+                isSurfaceReady = false
             }
         })
     }
 
-    override fun doFrame(frameTimeNanos: Long) {
+    override fun doFrame(frameTimeNanos : Long) {
 
-        if (isAttachedToWindow && queue.viewSize != null && queue.isNotEmpty()) {
-            isAnime = true
+        if (isResume && isSurfaceReady && queue.isNotEmpty()) {
             val mCanvas = mHolder?.lockCanvas() ?: return
             mCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-            queue.onDraw(mCanvas)
+            queue.drawFrame(mCanvas,frameTimeNanos,)
             mHolder?.unlockCanvasAndPost(mCanvas)
+
             choreographer.postFrameCallback(this)
         } else {
-            isAnime = false
+            isResume = false
         }
 
 
     }
 
-    override fun addOsdItem(item: OSDContainer) {
+    override fun addOsdItem(item : OSDItem<Canvas>) {
         queue.add(item)
         onStart()
     }
 
-    override fun removeOsdItem(item: OSDContainer) {
+    override fun removeOsdItem(item : OSDItem<Canvas>) {
         queue.remove(item)
     }
 
-    override fun onStart() {
-        if (!isAnime)
+    private fun onStart() {
+        if (!isResume)
             choreographer.postFrameCallback(this)
     }
 
-    override fun onStop() {
-        if (isAnime)
+    private fun onStop() {
+        if (isResume)
             choreographer.removeFrameCallback(this)
     }
 
