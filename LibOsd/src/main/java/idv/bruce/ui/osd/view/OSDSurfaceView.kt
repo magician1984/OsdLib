@@ -42,21 +42,21 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
 
     private var isResume : Boolean = false
 
-    private var isSurfaceReady :Boolean = false
+    private var isSurfaceReady : Boolean = false
 
-    private var mWidth:Int = -1
+    private var mWidth : Int = -1
 
-    private var mHeight:Int = -1
+    private var mHeight : Int = -1
 
-
+    private var mLastTimeNanos : Long = -1L
 
     init {
         (context as LifecycleOwner).apply {
             lifecycleScope.launch {
-                repeatOnLifecycle(Lifecycle.State.RESUMED){
+                repeatOnLifecycle(Lifecycle.State.RESUMED) {
                     onStart()
                 }
-                repeatOnLifecycle(Lifecycle.State.CREATED){
+                repeatOnLifecycle(Lifecycle.State.CREATED) {
                     onStop()
                 }
             }
@@ -80,10 +80,10 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
                 height : Int
             ) {
                 Log.d(TAG, "surfaceChanged : $format, $width, $height")
-                if(mWidth != width || mHeight != height)
+                if (mWidth != width || mHeight != height)
                     isSurfaceReady = false
 
-                if(!isSurfaceReady){
+                if (!isSurfaceReady) {
                     mWidth = width
                     mHeight = height
                     queue.viewSize = Size(width, height)
@@ -102,8 +102,16 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
 
         if (isResume && isSurfaceReady && queue.isNotEmpty()) {
             val mCanvas = mHolder?.lockCanvas() ?: return
+
+            if (mLastTimeNanos == -1L)
+                mLastTimeNanos = frameTimeNanos
+
             mCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-            queue.drawFrame(mCanvas,frameTimeNanos,)
+
+            queue.drawFrame(mCanvas, frameTimeNanos, mLastTimeNanos)
+
+            mLastTimeNanos = frameTimeNanos
+
             mHolder?.unlockCanvasAndPost(mCanvas)
 
             choreographer.postFrameCallback(this)
@@ -124,13 +132,17 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
     }
 
     private fun onStart() {
-        if (!isResume)
+        if (!isResume) {
+            isResume = true
             choreographer.postFrameCallback(this)
+        }
     }
 
     private fun onStop() {
-        if (isResume)
+        if (isResume) {
+            isResume = false
             choreographer.removeFrameCallback(this)
+        }
     }
 
 }
