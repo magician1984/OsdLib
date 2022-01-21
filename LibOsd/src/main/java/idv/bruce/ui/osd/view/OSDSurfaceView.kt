@@ -31,9 +31,7 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
 
 
     var eventListener: OsdEventListener<Canvas>?
-        get() {
-            return queue.eventListener
-        }
+        get() = queue.eventListener
         set(value) {
             queue.eventListener = value
         }
@@ -87,9 +85,10 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
                     mWidth = width
                     mHeight = height
                     queue.viewSize = Size(width, height)
-                    isSurfaceReady
+                    isSurfaceReady = true
                 }
 
+                onStart()
             }
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -99,8 +98,8 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
     }
 
     override fun doFrame(frameTimeNanos: Long) {
-
         if (isResume && isSurfaceReady && queue.isNotEmpty()) {
+
             val mCanvas = mHolder?.lockCanvas() ?: return
 
             if (mLastTimeNanos == -1L)
@@ -108,7 +107,7 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
 
             mCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
-            queue.drawFrame(mCanvas, frameTimeNanos, mLastTimeNanos)
+            queue.drawFrame(mCanvas, frameTimeNanos, frameTimeNanos - mLastTimeNanos)
 
             mLastTimeNanos = frameTimeNanos
 
@@ -124,6 +123,8 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
 
     override fun addOsdItem(item: OSDItem<Canvas>) {
         queue.add(item)
+
+
         onStart()
     }
 
