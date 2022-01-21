@@ -1,7 +1,7 @@
 package idv.bruce.ui.osd
 
-interface OsdEventListener {
-    fun onDone(item: OSDItem)
+interface OsdEventListener<T> {
+    fun onDone(item: OSDItem<T>)
     fun onContainerReady()
     fun onContainerSizeChanged()
 }

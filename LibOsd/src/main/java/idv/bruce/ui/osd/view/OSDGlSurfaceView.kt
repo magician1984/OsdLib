@@ -2,19 +2,31 @@ package idv.bruce.ui.osd.view
 
 import android.content.Context
 import android.graphics.SurfaceTexture
+import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import android.util.AttributeSet
 import android.view.Surface
+import idv.bruce.ui.osd.OSDItem
+import idv.bruce.ui.osd.OsdView
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
-class OSDGlSufaceView(context: Context, attrs: AttributeSet) : GLSurfaceView(context, attrs) {
+class OSDGlSurfaceView(context: Context, attrs: AttributeSet) : GLSurfaceView(context, attrs),
+    OsdView<GLES30> {
     private lateinit var surface: Surface
 
     private var isVideoSurfaceUpdated: Boolean = false
 
     init {
         setRenderer(PlayRenderer())
+    }
+
+    override fun addOsdItem(item: OSDItem<GLES30>) {
+
+    }
+
+    override fun removeOsdItem(item: OSDItem<GLES30>) {
+
     }
 
     private class PlayRenderer : Renderer {
