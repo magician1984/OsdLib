@@ -17,7 +17,7 @@ import kotlin.random.Random
 class MainActivity : AppCompatActivity() {
     private lateinit var binding : ActivityMainBinding
 
-    private val rnd : Random = Random(32)
+    private val rnd : Random = Random(System.currentTimeMillis())
 
     override fun onCreate(savedInstanceState : Bundle?) {
         super.onCreate(savedInstanceState)

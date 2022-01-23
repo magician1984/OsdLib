@@ -2,12 +2,14 @@ package idv.bruce.ui.osd.view
 
 import android.content.Context
 import android.graphics.*
+import android.os.Build
 import android.util.AttributeSet
 import android.util.Log
 import android.util.Size
 import android.view.Choreographer
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -18,35 +20,35 @@ import idv.bruce.ui.osd.OsdView
 import idv.bruce.ui.osd.OsdEventListener
 import kotlinx.coroutines.launch
 
-class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context, attr),
-    Choreographer.FrameCallback,
-    OsdView<Canvas> {
+class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(context, attr),
+                                                               Choreographer.FrameCallback,
+                                                               OsdView<Canvas> {
     companion object {
-        const val TAG: String = "OSD_Container"
+        const val TAG : String = "OSD_Container"
     }
 
-    private val queue: OSDQueue<Canvas> = OSDQueue()
+    private val queue : OSDQueue<Canvas> = OSDQueue()
 
-    private val choreographer: Choreographer = Choreographer.getInstance()
+    private val choreographer : Choreographer = Choreographer.getInstance()
 
 
-    var eventListener: OsdEventListener<Canvas>?
+    var eventListener : OsdEventListener<Canvas>?
         get() = queue.eventListener
         set(value) {
             queue.eventListener = value
         }
 
-    private var mHolder: SurfaceHolder? = null
+    private var mHolder : SurfaceHolder? = null
 
-    private var isResume: Boolean = false
+    private var isResume : Boolean = false
 
-    private var isSurfaceReady: Boolean = false
+    private var isSurfaceReady : Boolean = false
 
-    private var mWidth: Int = -1
+    private var mWidth : Int = -1
 
-    private var mHeight: Int = -1
+    private var mHeight : Int = -1
 
-    private var mLastTimeNanos: Long = -1L
+    private var mLastTimeNanos : Long = -1L
 
     init {
         (context as LifecycleOwner).apply {
@@ -63,7 +65,7 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
         setZOrderMediaOverlay(true)
 
         holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceCreated(holder: SurfaceHolder) {
+            override fun surfaceCreated(holder : SurfaceHolder) {
                 Log.d(TAG, "surfaceCreated")
 
                 mHolder = holder
@@ -72,10 +74,10 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
             }
 
             override fun surfaceChanged(
-                holder: SurfaceHolder,
-                format: Int,
-                width: Int,
-                height: Int
+                holder : SurfaceHolder,
+                format : Int,
+                width : Int,
+                height : Int
             ) {
                 Log.d(TAG, "surfaceChanged : $format, $width, $height")
                 if (mWidth != width || mHeight != height)
@@ -91,16 +93,18 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
                 onStart()
             }
 
-            override fun surfaceDestroyed(holder: SurfaceHolder) {
+            override fun surfaceDestroyed(holder : SurfaceHolder) {
                 isSurfaceReady = false
             }
         })
     }
 
-    override fun doFrame(frameTimeNanos: Long) {
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    override fun doFrame(frameTimeNanos : Long) {
         if (isResume && isSurfaceReady && queue.isNotEmpty()) {
 
-            val mCanvas = mHolder?.lockCanvas() ?: return
+            val mCanvas = mHolder?.lockHardwareCanvas() ?: return
 
             if (mLastTimeNanos == -1L)
                 mLastTimeNanos = frameTimeNanos
@@ -121,14 +125,14 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
 
     }
 
-    override fun addOsdItem(item: OSDItem<Canvas>) {
+    override fun addOsdItem(item : OSDItem<Canvas>) {
         queue.add(item)
 
 
         onStart()
     }
 
-    override fun removeOsdItem(item: OSDItem<Canvas>) {
+    override fun removeOsdItem(item : OSDItem<Canvas>) {
         queue.remove(item)
     }
 
