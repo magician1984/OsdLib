@@ -11,7 +11,9 @@ import androidx.annotation.ColorInt
 import androidx.annotation.IntRange
 import idv.bruce.ui.osd.OSDItem
 import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.collections.HashMap
+import kotlin.math.abs
 
 class OSDTextBarrageItem(location : PointF, size : SizeF, private val defaultSizePixel : Int) :
     OSDItem<Canvas>(location, size) {
@@ -43,7 +45,10 @@ class OSDTextBarrageItem(location : PointF, size : SizeF, private val defaultSiz
 
         mLimit = Pair(0, width)
 
-        mController = Controller(width, height, defaultSizePixel)
+        val matrix = mTextPaint.fontMetrics
+
+        val trackHeight : Int = abs(matrix.top).toInt() + abs(matrix.bottom).toInt()
+        mController = Controller(width, height, trackHeight)
 
         mIsReady = true
     }
@@ -55,19 +60,22 @@ class OSDTextBarrageItem(location : PointF, size : SizeF, private val defaultSiz
     ) : Boolean {
         if (mIsReady) {
 
-            val iterator = mController.mLaunchBarrage.values.iterator()
+            val iterator = mController.mLaunchBarrages.iterator()
 
             var barrage : Barrage
-            while (iterator.hasNext()) {
-                barrage = iterator.next()
-                when (barrage.draw(drawer, timeIntervalNanos)) {
-                    BARRAGE_STATE_ON_FLYING -> mController.unLockTrack(
-                        barrage.trackIndex,
-                        barrage.scale
-                    )
-                    BARRAGE_STATE_ON_DONE -> iterator.remove()
+            synchronized(iterator){
+                while (iterator.hasNext()) {
+                    barrage = iterator.next()
+                    when (barrage.draw(drawer, timeIntervalNanos)) {
+                        BARRAGE_STATE_ON_FLYING -> mController.unLockTrack(
+                            barrage.trackIndex,
+                            barrage.scale
+                        )
+                        BARRAGE_STATE_ON_DONE -> iterator.remove()
+                    }
                 }
             }
+
         }
         return isEnded
     }
@@ -111,6 +119,7 @@ class OSDTextBarrageItem(location : PointF, size : SizeF, private val defaultSiz
             mItemTextPaint.textSize *= scale.toFloat()
 
             mItemTextPaint.getTextBounds(txt, 0, txt.length, mRect)
+            mItemTextPaint.strokeWidth = mItemTextPaint.textSize / 10f
         }
 
         fun setInitPosition(x : Float, y : Float) {
@@ -119,41 +128,41 @@ class OSDTextBarrageItem(location : PointF, size : SizeF, private val defaultSiz
 
 
         fun draw(canvas : Canvas, timeIntervalNanos : Long) : Int {
-                if (state < BARRAGE_STATE_ON_DEPARTING) return BARRAGE_STATE_ERROR
+            if (state < BARRAGE_STATE_ON_DEPARTING) return BARRAGE_STATE_ERROR
 
-                position.offset(-50f * (timeIntervalNanos.toFloat() / 1000000000f), 0f)
+            position.offset(-50f * (timeIntervalNanos.toFloat() / 1000000000f), 0f)
 //
-                canvas.save()
+            canvas.save()
 
-                canvas.translate(position.x, position.y)
+            canvas.translate(position.x, position.y)
 
-                mItemTextPaint.style = Paint.Style.STROKE
-                mItemTextPaint.color = outlineColor
-                canvas.drawText(txt, 0f, 0f, mItemTextPaint)
+            mItemTextPaint.style = Paint.Style.STROKE
+            mItemTextPaint.color = outlineColor
+            canvas.drawText(txt, 0f, 0f, mItemTextPaint)
 
-                mItemTextPaint.style = Paint.Style.FILL
-                mItemTextPaint.color = textColor
+            mItemTextPaint.style = Paint.Style.FILL
+            mItemTextPaint.color = textColor
             mItemTextPaint.bgColor
-                canvas.drawText(txt, 0f, 0f, mItemTextPaint)
+            canvas.drawText(txt, 0f, 0f, mItemTextPaint)
 
-                canvas.restore()
+            canvas.restore()
 
-                state = when {
-                    state == BARRAGE_STATE_ON_ENTERING && position.x + mRect.width() < mLimit.first -> {
-                        BARRAGE_STATE_ON_DONE
-                    }
-                    state == BARRAGE_STATE_ON_FLYING && position.x <= mLimit.first -> {
-                        BARRAGE_STATE_ON_ENTERING
-                    }
-                    state == BARRAGE_STATE_ON_DEPARTING && (position.x + mRect.width()) < mLimit.second -> {
-                        BARRAGE_STATE_ON_FLYING
-                    }
-                    else -> {
-                        return BARRAGE_STATE_NOT_CHANGE
-                    }
+            state = when {
+                state == BARRAGE_STATE_ON_ENTERING && position.x + mRect.width() < mLimit.first -> {
+                    BARRAGE_STATE_ON_DONE
                 }
+                state == BARRAGE_STATE_ON_FLYING && position.x <= mLimit.first -> {
+                    BARRAGE_STATE_ON_ENTERING
+                }
+                state == BARRAGE_STATE_ON_DEPARTING && (position.x + mRect.width()) < mLimit.second -> {
+                    BARRAGE_STATE_ON_FLYING
+                }
+                else -> {
+                    return BARRAGE_STATE_NOT_CHANGE
+                }
+            }
 
-                return state
+            return state
         }
 
         override fun toString() : String {
@@ -164,21 +173,21 @@ class OSDTextBarrageItem(location : PointF, size : SizeF, private val defaultSiz
     }
 
 
-    private inner class Controller(private var width : Int, height : Int, baseTextSize : Int) {
+    private class Controller(private var width : Int, height : Int,private val trackHeight : Int) {
         private val mWaitingQueue : LinkedList<Barrage> = LinkedList()
 
         private var mTrackMap : Array<Boolean>
 
         private var mTrackOffset : Int = 0
 
-        val mLaunchBarrage : HashMap<Long, Barrage> = HashMap()
+        val mLaunchBarrages : ConcurrentLinkedQueue<Barrage> = ConcurrentLinkedQueue()
 
         init {
-            val trackCount : Int = height / baseTextSize
+            val trackCount : Int = height / trackHeight
 
             mTrackMap = Array(trackCount) { true }
 
-            mTrackOffset = (height % baseTextSize) / trackCount
+            mTrackOffset = (height % trackHeight) / trackCount
 
         }
 
@@ -191,18 +200,17 @@ class OSDTextBarrageItem(location : PointF, size : SizeF, private val defaultSiz
                 lockTrack(index, barrage.scale)
                 barrage.setInitPosition(
                     width.toFloat(),
-                    ((defaultSizePixel + mTrackOffset) * (index + 1)).toFloat()
+                    ((trackHeight + mTrackOffset) * (index + barrage.scale)).toFloat()
                 )
                 barrage.state = BARRAGE_STATE_ON_DEPARTING
                 barrage.trackIndex = index
-                mLaunchBarrage[barrage.uid] = barrage
-                Log.d("Trace", "Count : ${mLaunchBarrage.size}")
+                mLaunchBarrages.add(barrage)
+                Log.d("Trace", "Count : ${mLaunchBarrages.size}")
             }
 
         }
 
         fun unLockTrack(index : Int, size : Int) {
-            Log.d("Trace", "Unlock $index, $size")
             mTrackMap.fill(true, index, index + size)
             if (mWaitingQueue.isNotEmpty()) {
                 if (size >= mWaitingQueue.first?.scale ?: return)
@@ -211,13 +219,12 @@ class OSDTextBarrageItem(location : PointF, size : SizeF, private val defaultSiz
         }
 
         fun lockTrack(index : Int, size : Int) {
-            Log.d("Trace", "lockTrack $index, $size")
             mTrackMap.fill(false, index, index + size)
         }
 
         fun release() {
             mWaitingQueue.clear()
-            mLaunchBarrage.clear()
+            mLaunchBarrages.clear()
         }
 
         private fun findIdleTrack(n : Int) : Int {

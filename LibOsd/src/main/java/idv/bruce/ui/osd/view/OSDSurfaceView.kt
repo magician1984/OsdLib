@@ -4,8 +4,6 @@ import android.content.Context
 import android.graphics.*
 import android.os.Build
 import android.util.AttributeSet
-import android.util.Log
-import android.util.Size
 import android.view.Choreographer
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -14,30 +12,25 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import idv.bruce.ui.osd.OSDItem
-import idv.bruce.ui.osd.OSDQueue
-import idv.bruce.ui.osd.OsdView
-import idv.bruce.ui.osd.OsdEventListener
+import idv.bruce.ui.osd.*
+import idv.bruce.ui.osd.CallbackHandler
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentLinkedQueue
 
+@RequiresApi(Build.VERSION_CODES.O)
 class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(context, attr),
                                                                Choreographer.FrameCallback,
                                                                OsdView<Canvas> {
-    companion object {
-        const val TAG : String = "OSD_Container"
-    }
-
-    private val queue : OSDQueue<Canvas> = OSDQueue()
+    private val queue : ConcurrentLinkedQueue<OSDItem<Canvas>> = ConcurrentLinkedQueue()
 
     private val choreographer : Choreographer = Choreographer.getInstance()
 
 
     var eventListener : OsdEventListener<Canvas>?
-        get() = queue.eventListener
+        get() = mHandler.eventListener
         set(value) {
-            queue.eventListener = value
+            mHandler.eventListener = value
         }
-
     private var mHolder : SurfaceHolder? = null
 
     private var isResume : Boolean = false
@@ -49,6 +42,8 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
     private var mHeight : Int = -1
 
     private var mLastTimeNanos : Long = -1L
+
+    private val mHandler : CallbackHandler<Canvas> = CallbackHandler(null)
 
     init {
         (context as LifecycleOwner).apply {
@@ -66,11 +61,12 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
 
         holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder : SurfaceHolder) {
-                Log.d(TAG, "surfaceCreated")
 
                 mHolder = holder
 
                 mHolder!!.setFormat(PixelFormat.TRANSLUCENT)
+
+                mHandler.onReady()
             }
 
             override fun surfaceChanged(
@@ -79,15 +75,19 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
                 width : Int,
                 height : Int
             ) {
-                Log.d(TAG, "surfaceChanged : $format, $width, $height")
                 if (mWidth != width || mHeight != height)
                     isSurfaceReady = false
 
                 if (!isSurfaceReady) {
                     mWidth = width
                     mHeight = height
-                    queue.viewSize = Size(width, height)
+                    if (queue.isNotEmpty()) {
+                        queue.forEach {
+                            it.onWindowSizeChanged(mWidth, mHeight)
+                        }
+                    }
                     isSurfaceReady = true
+                    mHandler.onSizeChanged()
                 }
 
                 onStart()
@@ -100,7 +100,7 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
     }
 
 
-    @RequiresApi(Build.VERSION_CODES.O)
+
     override fun doFrame(frameTimeNanos : Long) {
         if (isResume && isSurfaceReady && queue.isNotEmpty()) {
 
@@ -111,11 +111,23 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
 
             mCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
-            queue.drawFrame(mCanvas, frameTimeNanos, frameTimeNanos - mLastTimeNanos)
+            val iterator = queue.iterator()
+
+            while (iterator.hasNext()) {
+                iterator.next().apply {
+                    if (this.drawFrame(mCanvas, frameTimeNanos, frameTimeNanos - mLastTimeNanos)) {
+                        iterator.remove()
+                        mHandler.onItemRemoved(this)
+                    }
+                }
+            }
 
             mLastTimeNanos = frameTimeNanos
 
             mHolder?.unlockCanvasAndPost(mCanvas)
+
+            if (BuildConfig.DEBUG)
+                mHandler.debug("${(System.nanoTime() - frameTimeNanos) / 1000000f} ms")
 
             choreographer.postFrameCallback(this)
         } else {
@@ -126,6 +138,8 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
     }
 
     override fun addOsdItem(item : OSDItem<Canvas>) {
+        if (isSurfaceReady)
+            item.onWindowSizeChanged(mWidth, mHeight)
         queue.add(item)
 
 
@@ -135,7 +149,6 @@ class OSDSurfaceView(context : Context, attr : AttributeSet) : SurfaceView(conte
     override fun removeOsdItem(item : OSDItem<Canvas>) {
         queue.remove(item)
     }
-
     private fun onStart() {
         if (!isResume) {
             isResume = true

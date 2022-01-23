@@ -47,7 +47,7 @@ class MainActivity : AppCompatActivity() {
                         Color.argb(255, rnd.nextInt(255), rnd.nextInt(255), rnd.nextInt(255)),
                         Color.argb(255, rnd.nextInt(255), rnd.nextInt(255), rnd.nextInt(255)),
                         20f,
-                        rnd.nextInt(1, 3)
+                        1
                     )
                 }
             }

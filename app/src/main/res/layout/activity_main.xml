@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     tools:context=".MainActivity">
 
-    <idv.bruce.ui.osd.view.OSDSurfaceView
+    <idv.bruce.ui.osd.view.OSDBaseView
         android:id="@+id/osd"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />

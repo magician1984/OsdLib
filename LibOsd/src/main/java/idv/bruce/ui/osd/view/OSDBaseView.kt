@@ -3,54 +3,44 @@ package idv.bruce.ui.osd.view
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.PixelFormat
 import android.graphics.PorterDuff
 import android.util.AttributeSet
-import android.util.Log
-import android.util.Size
 import android.view.Choreographer
-import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.view.View
-import android.widget.ImageView
-import android.widget.TextView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import idv.bruce.ui.osd.OSDItem
-import idv.bruce.ui.osd.OSDQueue
-import idv.bruce.ui.osd.OsdEventListener
-import idv.bruce.ui.osd.OsdView
+import idv.bruce.ui.osd.*
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentLinkedQueue
 
-class OSDBaseView(context: Context, attr: AttributeSet) : View(context, attr),
-                                                             Choreographer.FrameCallback,
-                                                             OsdView<Canvas> {
-    companion object {
-        const val TAG: String = "OSD_Container"
-    }
+class OSDBaseView(context : Context, attr : AttributeSet) : View(context, attr),
+                                                            Choreographer.FrameCallback,
+                                                            OsdView<Canvas> {
 
-    private val queue: OSDQueue<Canvas> = OSDQueue()
+    private val queue : ConcurrentLinkedQueue<OSDItem<Canvas>> = ConcurrentLinkedQueue()
 
-    private val choreographer: Choreographer = Choreographer.getInstance()
+    private val choreographer : Choreographer = Choreographer.getInstance()
 
-
-    var eventListener: OsdEventListener<Canvas>?
-        get() = queue.eventListener
+    var eventListener : OsdEventListener<Canvas>?
+        get() = mHandler.eventListener
         set(value) {
-            queue.eventListener = value
+            mHandler.eventListener = value
         }
 
-    private var isResume: Boolean = false
+    private var isResume : Boolean = false
 
-    private var isSurfaceReady: Boolean = false
+    private var isSurfaceReady : Boolean = false
 
-    private var mWidth: Int = -1
+    private var mWidth : Int = -1
 
-    private var mHeight: Int = -1
+    private var mHeight : Int = -1
 
-    private var mLastTimeNanos: Long = -1L
+    private var mLastTimeNanos : Long = -1L
+
+    private val mHandler : CallbackHandler<Canvas> = CallbackHandler(null)
+
 
     init {
         (context as LifecycleOwner).apply {
@@ -67,20 +57,25 @@ class OSDBaseView(context: Context, attr: AttributeSet) : View(context, attr),
 
     override fun onMeasure(widthMeasureSpec : Int, heightMeasureSpec : Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-        Log.d(TAG, "surfaceChanged : $measuredWidth, $measuredHeight")
         if (mWidth != measuredWidth || mHeight != measuredHeight)
             isSurfaceReady = false
 
         if (!isSurfaceReady) {
             mWidth = measuredWidth
             mHeight = measuredHeight
-            queue.viewSize = Size(mWidth, mHeight)
+            if (queue.isNotEmpty()) {
+                queue.forEach {
+                    it.onWindowSizeChanged(mWidth, mHeight)
+                }
+            }
             isSurfaceReady = true
+            mHandler.onReady()
+            mHandler.onSizeChanged()
         }
     }
 
     override fun onDraw(canvas : Canvas?) {
-        if (isResume && isSurfaceReady && queue.isNotEmpty()) {
+        if (isResume && isSurfaceReady) {
             val frameTimeNanos : Long = System.nanoTime()
 
             val mCanvas = canvas ?: return
@@ -92,29 +87,42 @@ class OSDBaseView(context: Context, attr: AttributeSet) : View(context, attr),
 
             mCanvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
 
-            queue.drawFrame(mCanvas, frameTimeNanos, frameTimeNanos - mLastTimeNanos)
+            val iterator = queue.iterator()
+
+            while (iterator.hasNext()) {
+                iterator.next().apply {
+                    if (this.drawFrame(mCanvas, frameTimeNanos, frameTimeNanos - mLastTimeNanos)) {
+                        iterator.remove()
+                        mHandler.onItemRemoved(this)
+                    }
+                }
+            }
 
             mLastTimeNanos = frameTimeNanos
+            if (BuildConfig.DEBUG)
+                mHandler.debug("${(System.nanoTime() - frameTimeNanos) / 1000000f} ms")
 
-        }else{
+        } else {
             super.onDraw(canvas)
         }
     }
 
-    override fun doFrame(frameTimeNanos: Long) {
+    override fun doFrame(frameTimeNanos : Long) {
         postInvalidate()
 
         choreographer.postFrameCallback(this)
     }
 
-    override fun addOsdItem(item: OSDItem<Canvas>) {
+    override fun addOsdItem(item : OSDItem<Canvas>) {
+        if (isSurfaceReady)
+            item.onWindowSizeChanged(mWidth, mHeight)
         queue.add(item)
 
 
         onStart()
     }
 
-    override fun removeOsdItem(item: OSDItem<Canvas>) {
+    override fun removeOsdItem(item : OSDItem<Canvas>) {
         queue.remove(item)
     }
 
@@ -131,5 +139,4 @@ class OSDBaseView(context: Context, attr: AttributeSet) : View(context, attr),
             choreographer.removeFrameCallback(this)
         }
     }
-
 }

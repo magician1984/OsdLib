@@ -11,6 +11,7 @@ import idv.bruce.ui.osd.OsdView
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
+
 class OSDGlSurfaceView(context: Context, attrs: AttributeSet) : GLSurfaceView(context, attrs),
     OsdView<GLES30> {
     private lateinit var surface: Surface
