@@ -23,7 +23,7 @@ class OSDBaseView(context : Context, attr : AttributeSet) : View(context, attr),
 
     private val choreographer : Choreographer = Choreographer.getInstance()
 
-    var eventListener : OsdEventListener<Canvas>?
+    var eventListener : OsdEventListener?
         get() = mHandler.eventListener
         set(value) {
             mHandler.eventListener = value
@@ -99,8 +99,8 @@ class OSDBaseView(context : Context, attr : AttributeSet) : View(context, attr),
             }
 
             mLastTimeNanos = frameTimeNanos
-            if (BuildConfig.DEBUG)
-                mHandler.debug("${(System.nanoTime() - frameTimeNanos) / 1000000f} ms")
+//            if (BuildConfig.DEBUG)
+//                mHandler.debug("${(System.nanoTime() - frameTimeNanos) / 1000000f} ms")
 
         } else {
             super.onDraw(canvas)

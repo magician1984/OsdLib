@@ -4,13 +4,13 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 
-internal class CallbackHandler<T>(var eventListener : OsdEventListener<T>?) :
+internal class CallbackHandler<T>(var eventListener : OsdEventListener?) :
     Handler(Looper.getMainLooper()) {
     companion object {
         const val TAG : String = "OSDView"
     }
 
-    fun onItemRemoved(item : OSDItem<T>) =
+    fun onItemRemoved(item : OSDItem<*>) =
         post {
             eventListener?.onDone(item)
         }

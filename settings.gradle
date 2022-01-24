@@ -10,3 +10,4 @@ rootProject.name = "OsdLib"
 include ':app'
 include ':LibOsd'
 include ':mytester'
+include ':ItemBarrage'
