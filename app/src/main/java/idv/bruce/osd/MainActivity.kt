@@ -33,11 +33,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onContainerReady() {
                 val item: OSDBarrageItem =
-                    OSDBarrageItem(
-                        PointF(0f, 0f),
-                        SizeF(1f, 1f),
-                        resources.getDimensionPixelSize(R.dimen.def_text_size)
-                    )
+                    OSDBarrageItem(resources.getDimensionPixelSize(R.dimen.def_text_size))
 
                 Log.d("Trace", "OnReady")
                 binding.osd.addOsdItem(item)

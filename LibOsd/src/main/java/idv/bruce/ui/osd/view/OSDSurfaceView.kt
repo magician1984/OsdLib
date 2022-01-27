@@ -26,7 +26,7 @@ class OSDSurfaceView(context: Context, attr: AttributeSet) : SurfaceView(context
     private val choreographer: Choreographer = Choreographer.getInstance()
 
 
-    var eventListener: OsdEventListener<Canvas>?
+    var eventListener: OsdEventListener?
         get() = mHandler.eventListener
         set(value) {
             mHandler.eventListener = value

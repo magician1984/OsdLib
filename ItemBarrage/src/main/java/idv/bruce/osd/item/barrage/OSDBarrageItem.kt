@@ -10,8 +10,8 @@ import java.util.*
 import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.abs
 
-class OSDBarrageItem(location: PointF, size: SizeF, private val defaultSizePixel: Int) :
-    OSDItem<Canvas>(location, size) {
+class OSDBarrageItem(defaultSizePixel: Int) :
+    OSDItem<Canvas>(PointF(0f, 0f), SizeF(1f, 1f)) {
 
     companion object {
         const val BARRAGE_STATE_ERROR = -1
@@ -37,13 +37,14 @@ class OSDBarrageItem(location: PointF, size: SizeF, private val defaultSizePixel
     }
 
     override fun onWindowSizeChanged(width: Int, height: Int) {
+        super.onWindowSizeChanged(width, height)
 
-        mLimit = Pair(0, width)
+        mLimit = Pair(mRect.left, mRect.right)
 
         val matrix = mTextPaint.fontMetrics
-
         val trackHeight: Int = abs(matrix.top).toInt() + abs(matrix.bottom).toInt()
-        mController = Controller(width, height, trackHeight)
+
+        mController = Controller(mRect.width(), mRect.height(), trackHeight)
 
         mIsReady = true
     }
@@ -53,7 +54,9 @@ class OSDBarrageItem(location: PointF, size: SizeF, private val defaultSizePixel
         frameTimeNanos: Long,
         timeIntervalNanos: Long
     ): Boolean {
-        if (mIsReady) {
+        if (super.drawFrame(drawer, frameTimeNanos, timeIntervalNanos))
+            return true
+        else if (mIsReady) {
 
             val iterator = mController.mLaunchBarrages.iterator()
 
@@ -72,7 +75,7 @@ class OSDBarrageItem(location: PointF, size: SizeF, private val defaultSizePixel
             }
 
         }
-        return isEnded
+        return false
     }
 
     override fun release() {

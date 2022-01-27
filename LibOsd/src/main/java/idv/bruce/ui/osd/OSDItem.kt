@@ -1,17 +1,25 @@
 package idv.bruce.ui.osd
 
 import android.graphics.PointF
+import android.graphics.Rect
 import android.util.SizeF
 
-abstract class OSDItem<T>(var locationPercent: PointF, var size: SizeF) {
+abstract class OSDItem<T>(var positionPercent: PointF, var sizePercent: SizeF) {
 
     private val uid: Long = System.currentTimeMillis()
 
     var isEnded: Boolean = false
 
-    abstract fun onWindowSizeChanged(width: Int, height: Int)
+    protected val mRect:Rect = Rect()
 
-    abstract fun drawFrame(drawer: T, frameTimeNanos: Long, timeIntervalNanos: Long): Boolean
+    open fun onWindowSizeChanged(width: Int, height: Int) {
+        mRect.left = (width.toFloat() * positionPercent.x).toInt()
+        mRect.top = (height.toFloat() * positionPercent.y).toInt()
+        mRect.right  = mRect.left + (width.toFloat() * sizePercent.width).toInt()
+        mRect.bottom = mRect.top + (height.toFloat() * sizePercent.height).toInt()
+    }
+
+    open fun drawFrame(drawer: T, frameTimeNanos: Long, timeIntervalNanos: Long): Boolean = isEnded
 
     abstract fun release()
 

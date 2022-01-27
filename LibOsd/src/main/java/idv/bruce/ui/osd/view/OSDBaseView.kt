@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.PorterDuff
 import android.util.AttributeSet
+import android.util.Log
 import android.view.Choreographer
 import android.view.View
 import androidx.lifecycle.Lifecycle
@@ -99,8 +100,8 @@ class OSDBaseView(context : Context, attr : AttributeSet) : View(context, attr),
             }
 
             mLastTimeNanos = frameTimeNanos
-//            if (BuildConfig.DEBUG)
-//                mHandler.debug("${(System.nanoTime() - frameTimeNanos) / 1000000f} ms")
+            if (BuildConfig.DEBUG)
+                Log.d("Trace", "${(System.nanoTime() - frameTimeNanos) / 1000000f} ms")
 
         } else {
             super.onDraw(canvas)
